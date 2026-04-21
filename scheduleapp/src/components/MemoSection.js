@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Switch, ScrollView, Alert,
+  Switch, Alert,
 } from 'react-native';
 import dayjs from 'dayjs';
 import { useApp } from '../context/AppContext';
@@ -14,6 +14,11 @@ const HOURS = Array.from({ length: 24 }, (_, i) => ({
   value: String(i).padStart(2, '0'),
 }));
 
+const MINUTES = Array.from({ length: 12 }, (_, i) => ({
+  label: `${String(i * 5).padStart(2, '0')}분`,
+  value: String(i * 5).padStart(2, '0'),
+}));
+
 export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMemoChange }) {
   const { s, fs } = useResponsive();
   const {
@@ -22,12 +27,12 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
     getSchedulesForDate, getAnniversariesForDate,
   } = useApp();
 
-  // Use lifted memo state if provided (for cross-component dirty-check)
   const memo = pendingMemo !== undefined ? pendingMemo : '';
   const setMemo = onPendingMemoChange || (() => {});
 
   const [alarmEnabled, setAlarmEnabled] = useState(false);
   const [alarmHour, setAlarmHour] = useState('09');
+  const [alarmMinute, setAlarmMinute] = useState('00');
   const [alarmBefore, setAlarmBefore] = useState('none');
   const [editingId, setEditingId] = useState(null);
   const [daySchedules, setDaySchedules] = useState([]);
@@ -46,6 +51,7 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
     setMemo('');
     setAlarmEnabled(false);
     setAlarmHour('09');
+    setAlarmMinute('00');
     setAlarmBefore('none');
     setEditingId(null);
   }, [setMemo]);
@@ -59,7 +65,7 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
       date: selectedDate,
       memo: memo.trim(),
       alarmEnabled,
-      alarmTime: alarmEnabled ? `${alarmHour}:00` : null,
+      alarmTime: alarmEnabled ? `${alarmHour}:${alarmMinute}` : null,
       alarmBefore: alarmEnabled ? alarmBefore : 'none',
     };
 
@@ -75,7 +81,17 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
   const handleItemPress = (item) => {
     setMemo(item.memo);
     setAlarmEnabled(item.alarmEnabled || false);
-    setAlarmHour(item.alarmTime ? item.alarmTime.split(':')[0] : '09');
+    if (item.alarmTime) {
+      const [h, m] = item.alarmTime.split(':');
+      setAlarmHour(h || '09');
+      // Round to nearest 5-min slot
+      const mNum = parseInt(m || '0', 10);
+      const rounded = String(Math.round(mNum / 5) * 5).padStart(2, '0');
+      setAlarmMinute(rounded === '60' ? '55' : rounded);
+    } else {
+      setAlarmHour('09');
+      setAlarmMinute('00');
+    }
     setAlarmBefore(item.alarmBefore || 'none');
     setEditingId(item.id);
   };
@@ -129,26 +145,40 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
           </View>
 
           {alarmEnabled && (
-            <View style={styles.alarmRow}>
-              <View style={styles.comboWrap}>
-                <Text style={styles.subLabel}>알람 시간</Text>
-                <ComboBox
-                  options={HOURS}
-                  value={alarmHour}
-                  onChange={setAlarmHour}
-                  placeholder="시간"
-                />
+            <>
+              <View style={styles.alarmTimeRow}>
+                <View style={styles.timeLabel}>
+                  <Text style={styles.subLabel}>알람 시간</Text>
+                </View>
+                <View style={styles.timeCombo}>
+                  <ComboBox
+                    options={HOURS}
+                    value={alarmHour}
+                    onChange={setAlarmHour}
+                    placeholder="시"
+                  />
+                </View>
+                <View style={styles.timeCombo}>
+                  <ComboBox
+                    options={MINUTES}
+                    value={alarmMinute}
+                    onChange={setAlarmMinute}
+                    placeholder="분"
+                  />
+                </View>
               </View>
-              <View style={styles.comboWrap}>
+              <View style={styles.alarmBeforeRow}>
                 <Text style={styles.subLabel}>사전 알림</Text>
-                <ComboBox
-                  options={ALARM_BEFORE_OPTIONS}
-                  value={alarmBefore}
-                  onChange={setAlarmBefore}
-                  placeholder="없음"
-                />
+                <View style={styles.beforeCombo}>
+                  <ComboBox
+                    options={ALARM_BEFORE_OPTIONS}
+                    value={alarmBefore}
+                    onChange={setAlarmBefore}
+                    placeholder="없음"
+                  />
+                </View>
               </View>
-            </View>
+            </>
           )}
 
           <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
@@ -161,7 +191,6 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
             </TouchableOpacity>
           )}
 
-          {/* Registered items */}
           {(daySchedules.length > 0 || dayAnnivs.length > 0) && (
             <View style={styles.listSection}>
               <Text style={styles.listTitle}>등록된 일정 내역</Text>
@@ -180,13 +209,16 @@ export default function MemoSection({ isOpen, onToggle, pendingMemo, onPendingMe
                   <Text style={styles.scheduleText} numberOfLines={2}>{item.memo}</Text>
                   {item.alarmEnabled && (
                     <Text style={styles.alarmBadge}>
-                      🔔 {item.alarmTime}{item.alarmBefore !== 'none' ? ` (${ALARM_BEFORE_OPTIONS.find(o => o.value === item.alarmBefore)?.label})` : ''}
+                      🔔 {item.alarmTime}
+                      {item.alarmBefore !== 'none'
+                        ? ` (${ALARM_BEFORE_OPTIONS.find((o) => o.value === item.alarmBefore)?.label})`
+                        : ''}
                     </Text>
                   )}
                 </TouchableOpacity>
               ))}
               {daySchedules.length > 0 && (
-                <Text style={styles.hint}>항목을 탭하면 수정, 길게 누르면 삭제</Text>
+                <Text style={styles.hint}>탭 → 수정 / 길게 누르기 → 삭제</Text>
               )}
             </View>
           )}
@@ -243,17 +275,23 @@ const makeStyles = (s, fs) =>
       marginBottom: s(8),
     },
     label: { fontSize: fs(14), color: '#444' },
-    alarmRow: {
+    alarmTimeRow: {
       flexDirection: 'row',
-      gap: s(8),
+      alignItems: 'center',
+      marginBottom: s(8),
+      gap: s(6),
+    },
+    timeLabel: {
+      justifyContent: 'center',
+    },
+    timeCombo: { width: s(80) },
+    subLabel: { fontSize: fs(12), color: '#666', marginRight: s(4) },
+    alarmBeforeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
       marginBottom: s(10),
     },
-    comboWrap: { flex: 1 },
-    subLabel: {
-      fontSize: fs(12),
-      color: '#666',
-      marginBottom: s(4),
-    },
+    beforeCombo: { flex: 1 },
     saveBtn: {
       backgroundColor: '#4A90D9',
       borderRadius: s(8),

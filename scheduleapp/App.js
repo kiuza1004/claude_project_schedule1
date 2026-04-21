@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, ScrollView, SafeAreaView, StatusBar, Alert,
   StyleSheet, ActivityIndicator, Text,
@@ -10,6 +10,7 @@ import MemoSection from './src/components/MemoSection';
 import AnniversarySection from './src/components/AnniversarySection';
 import SearchSection from './src/components/SearchSection';
 import { useResponsive } from './src/utils/responsive';
+import { setupNotificationChannel, requestPermissions } from './src/utils/notifications';
 
 function MainApp() {
   const { s, fs } = useResponsive();
@@ -17,6 +18,11 @@ function MainApp() {
     selectedDate, setSelectedDate,
     setCurrentMonth, today, loading,
   } = useApp();
+
+  useEffect(() => {
+    setupNotificationChannel();
+    requestPermissions();
+  }, []);
 
   const [memoOpen, setMemoOpen] = useState(false);
   const [annivOpen, setAnnivOpen] = useState(false);

@@ -10,6 +10,19 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Android requires a notification channel
+export const setupNotificationChannel = async () => {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('schedule-alarm', {
+      name: '일정 알림',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4A90D9',
+      sound: 'default',
+    });
+  }
+};
+
 export const requestPermissions = async () => {
   if (!Device.isDevice) return false;
   const { status: existing } = await Notifications.getPermissionsAsync();
@@ -25,6 +38,8 @@ export const scheduleAlarm = async (schedule) => {
   if (!granted) return null;
 
   try {
+    await setupNotificationChannel();
+
     const [hour, minute] = schedule.alarmTime.split(':').map(Number);
     const alarmDate = new Date(schedule.alarmDate);
     alarmDate.setHours(hour, minute || 0, 0, 0);
@@ -38,9 +53,14 @@ export const scheduleAlarm = async (schedule) => {
       content: {
         title: '일정 알림',
         body: schedule.memo,
+        sound: 'default',
         data: { scheduleId: schedule.id },
       },
-      trigger: { date: alarmDate },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: alarmDate,
+        channelId: 'schedule-alarm',
+      },
     });
     return notifId;
   } catch (e) {

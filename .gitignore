@@ -1,0 +1,22 @@
+# dependencies
+scheduleapp/node_modules/
+
+# Expo
+scheduleapp/.expo/
+scheduleapp/dist/
+scheduleapp/web-build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# env
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code internal
+.claude/
